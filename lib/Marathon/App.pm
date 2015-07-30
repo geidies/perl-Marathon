@@ -109,14 +109,6 @@ sub dependencies {
     return $self->{data}->{dependencies};
 }
 
-sub id {
-    my ($self, $val) = @_;
-    if ( $val ) {
-        $self->{data}->{id} = $val;
-    }
-    return $self->{data}->{id};
-}
-
 sub healthChecks {
     my ($self, $val) = @_;
     if ( $val ) {
