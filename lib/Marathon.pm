@@ -39,7 +39,9 @@ Perhaps a little code snippet.
 Creates a Marathon object. You can pass in the URL to the marathon REST interface:
     
     use Marathon;
-    my $marathon = Marathon->new( url => 'http://169.254.47.11:8080' )
+    my $marathon = Marathon->new( url => 'http://169.254.47.11:8080', verbose => 0 );
+
+The "verbose" parameter makes the module more chatty on STDERR.
 
 =cut
 
@@ -66,9 +68,12 @@ sub _set_url { # void
   $self->{_url} = $url;
 }
 
-=head2 ping
+=head2 get_app( $id )
 
-returns 1 if the master responds to a ping request.
+Returns a Marathon::App as identified by the single argument "id". In case there is no such app, will return undef.
+
+    my $app = $marathon->get_app('such-1');
+    print $app->id . "\n";
 
 =cut
 
@@ -79,15 +84,51 @@ sub get_app { # Marathon::App
     return Marathon::App->new( $api_response->{app}, $self );
 }
 
+=head2 new_app( $config )
+
+Returns a new Marathon::App as described in the $config hash. Example:
+
+    my $app = $marathon->new_app({ id => 'very-1', mem => 4, cpus => 0.1, cmd => "while [ 1 ]; do echo 'wow.'; done" });
+
+This will not (!) start the app in marathon. To do so, call create() on the returned object:
+
+    $app->create();
+
+=cut
+
 sub new_app {
     my ($self, $config) = @_;
     return Marathon::App->new( $config, $self );
 }
 
+=head2 get_group( $id )
+
+Works like get_app, just for groups.
+
+=cut
+
 sub get_group { # Marathon::App
     my ( $self, $id ) = @_;
     return Marathon::Group->get( $id, $self );
 }
+
+=head2 new_group( $config )
+
+Creates a new group. You can either specify the apps in-line:
+
+    my $group = $marathon->new_group( { id => 'very-1', apps: [{ id => "such-2", cmd => ... }, { id => "such-3", cmd => ... }] } );
+
+Or add them to the created group later:
+
+    my $group = $marathon->new_group( { id => 'very-1' } );
+    $group->add( $marathon->new_app( { id => "such-2", cmd => ... } );
+    $group->add( $marathon->new_app( { id => "such-3", cmd => ... } );
+
+In any case, new_group will just return a Marathon::Group object, it will not commit to marathon until you call create() on the returned object:
+
+    $group->create();
+
+=cut
 
 sub new_group {
     my ($self, $config) = @_;
@@ -102,20 +143,44 @@ sub get_endpoint {
     return $url;
 }
 
+=head2 metrics
+
+returns the metrics returned by the /metrics endpoint, converted from json to perl.
+
+=cut
+
 sub metrics {
     my $self = shift;
     return $self->_get_obj('/metrics');
 }
+
+=head2 help
+
+returns the html returned by the /help endpoint.
+
+=cut
 
 sub help { # string (html)
     my $self = shift;
     return $self->_get_html('/help');
 }
 
+=head2 logging
+
+returns the html returned by the /logging endpoint.
+
+=cut
+
 sub logging { # string (html)
     my $self = shift;
     return $self->_get_html('/logging');
 }
+
+=head2 ping
+
+returns 1 if the master responds to a ping request.
+
+=cut
 
 sub ping { # string (plaintext)
     my $self = shift;
@@ -136,7 +201,7 @@ sub _get_html { # string (html) or undef on error
     if ( $response->is_success ) {
         return $response->decoded_content;
     }
-    return undef;
+    return '';
 }
 
 sub _get_obj { # hashref
@@ -177,11 +242,11 @@ sub _put_post_delete {
 
 sub _response_handler {
     my ( $self, $method, $response ) = @_;
-    unless ( $response->is_success ) {
-        print STDERR 'Error doing '.$method.' against '. $response->base.': ' . $response->status_line . "\n";
-        print STDERR $response->decoded_content ."\n";
-    } else {
-        if ( $verbose ) {
+    if ( $verbose ) {
+        unless ( $response->is_success ) {
+            print STDERR 'Error doing '.$method.' against '. $response->base.': ' . $response->status_line . "\n";
+            print STDERR $response->decoded_content ."\n";
+        } else {
             print STDERR $response->status_line . "\n"
         }
     }
