@@ -18,6 +18,7 @@ Version 0.01
 =cut
 
 our $VERSION = '0.01';
+our $verbose = 0;
 
 
 =head1 SYNOPSIS
@@ -45,11 +46,10 @@ Creates a Marathon object. You can pass in the URL to the marathon REST interfac
 sub new {
     my ($class, %conf) = @_;
     my $url = delete $conf{url} || 'http://localhost:8080/';
-    my $verbose = delete $conf{verbose} || 0;
+    $Marathon::verbose = delete $conf{verbose} || 0;
     my $ua = LWP::UserAgent->new;
     my $self = bless {
       _ua     => $ua,
-      verbose => $verbose,
     };
     $self->_set_url($url);
     return $self;
@@ -77,6 +77,21 @@ sub get_app { # Marathon::App
     my $api_response = $self->_get_obj('/v2/apps/' . $id);
     return undef unless defined $api_response;
     return Marathon::App->new( $api_response->{app}, $self );
+}
+
+sub new_app {
+    my ($self, $config) = @_;
+    return Marathon::App->new( $config, $self );
+}
+
+sub get_group { # Marathon::App
+    my ( $self, $id ) = @_;
+    return Marathon::Group->get( $id, $self );
+}
+
+sub new_group {
+    my ($self, $config) = @_;
+    return Marathon::Group->new( $config, $self );
 }
 
 sub get_endpoint {
@@ -157,15 +172,16 @@ sub _put_post_delete {
     }
     my $response = $self->{_ua}->request( $req );
     $self->_response_handler( $method, $response );
-    return $response->is_success;
+    return $response->is_success ? $response->decoded_content : undef;
 }
 
 sub _response_handler {
     my ( $self, $method, $response ) = @_;
     unless ( $response->is_success ) {
         print STDERR 'Error doing '.$method.' against '. $response->base.': ' . $response->status_line . "\n";
+        print STDERR $response->decoded_content ."\n";
     } else {
-        if ( $self->{verbose} ) {
+        if ( $verbose ) {
             print STDERR $response->status_line . "\n"
         }
     }

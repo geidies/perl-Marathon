@@ -5,6 +5,7 @@ use warnings;
 use parent 'Marathon::Remote';
 
 our @rw_values = qw(
+ id
  labels
  dependencies
  healthchecks
@@ -89,7 +90,7 @@ sub kill_task {
 
 sub get_updateable_values {
     my $self = shift;
-    my %kv = map { $_ => $self->{data}->{$_} } @Marathon::App::rw_values;
+    my %kv = map { $self->{data}->{$_} ? ( $_ => $self->{data}->{$_} ) : () } @Marathon::App::rw_values;
     return \%kv;
 }
 
@@ -99,14 +100,6 @@ sub labels {
         $self->{data}->{labels} = $val;
     }
     return $self->{data}->{labels};
-}
-
-sub dependencies {
-    my ($self, $val) = @_;
-    if ( $val ) {
-        $self->{data}->{dependencies} = $val;
-    }
-    return $self->{data}->{dependencies};
 }
 
 sub healthChecks {
@@ -260,11 +253,6 @@ sub tasks {
 sub uris {
     my $self = shift;
     return $self->{data}->{uris};
-}
-
-sub version {
-    my $self = shift;
-    return $self->{data}->{version};
 }
 
 sub user {

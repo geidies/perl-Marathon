@@ -3,6 +3,7 @@
 use strict;
 use Test::More tests => 6;
 
+use Marathon;
 use Marathon::Group;
 use Marathon::App;
 

@@ -3,6 +3,7 @@ package Marathon::Group;
 use strict;
 use warnings;
 use parent 'Marathon::Remote';
+use JSON::XS;
 
 sub new {
     my ($class, $conf, $parent) = @_;
@@ -14,50 +15,86 @@ sub new {
         apps => {},
         groups => {},
     };
+    if ( $conf->{apps} ) {
+        foreach ( @{$conf->{apps}} ) {
+            $self->add( Marathon::App->new( $_, $parent ) ); 
+        }
+    }
+    if ( $conf->{groups} ) {
+        foreach ( @{$conf->{groups}} ) {
+            $self->add( Marathon::Group->new( $_, $parent ) ); 
+        }
+    }
     return $self;
 }
 
 sub list {
     my $self = shift;
+    
+}
 
+sub get {
+    my ($self, $id, $parent) = @_;
+    my $api_response_obj = $parent->_get_obj('/v2/groups/' . $id);
+    return undef unless $api_response_obj;
+    return $self->new( $api_response_obj, $parent );
 }
 
 sub create {
     my $self = shift;
     $self->_bail unless defined $self->{parent};
-    return $self->{parent}->_post('/v2/groups', $self->get_updateable_values);
+    my $response = $self->{parent}->_post('/v2/groups', $self->get_updateable_values);
+    if ( $response ) {
+        $self->version( decode_json($response)->{version} );
+        return $self;
+    } 
+    return undef;
 }
 
 sub update {
-    my $self = shift;
+    my ($self, $args) = @_;
     $self->_bail unless defined $self->{parent};
-    return $self->{parent}->_put('/v2/groups/' . $self->id, $self->get_updateable_values);
+    my $payload = $self->get_updateable_values;
+    delete $payload->{id};
+    my $response = $self->{parent}->_put('/v2/groups/' . $self->id . $self->_uri_args($args), $payload);
+    if ( $response ) {
+        $self->version( decode_json($response)->{version} );
+        return $self;
+    } 
+    return undef;
 }
 
 sub delete {
-    my $self = shift;
+    my ($self, $args) = @_;
     $self->_bail unless defined $self->{parent};
-    return $self->{parent}->_delete('/v2/groups/' . $self->id);
+    return $self->{parent}->_delete('/v2/groups/' . $self->id . $self->_uri_args($args));
+}
+
+sub _uri_args {
+    my ($self, $args) = @_;
+    my $retval = '';
+    foreach ( keys %{$args} ) {
+        $retval .= $_ .'=' . $args->{$_};
+    }
+    return $retval ? '?' . $retval : $retval;
 }
 
 sub add {
     my ($self, $child) = @_;
     if ( $child->isa('Marathon::App') ) {
-        print STDERR "Add App: " . $self->id . ' :: ' . $child->id . "\n";
         if ( exists $self->{children}->{apps}->{$child->id} ) {
-            print STDERR "You cannot add the same App twice.\n";
+            print STDERR "You cannot add the same App twice.\n" if $Marathon::verbose;
             return 0;
         }
         $self->{children}->{apps}->{$child->id} = $child;
     } elsif ( $child->isa('Marathon::Group') ) {
-        print STDERR "Add Group: " . $self->id . ' :: ' . $child->id . "\n";
         if ( $self->is_or_has($child) ) {
-            print STDERR "You cannot add a group to itself.\n";
+            print STDERR "You cannot add a group to itself.\n" if $Marathon::verbose;
             return 0;
         }
         $self->{children}->{groups}->{$child->id} = $child;
     } else {
-        print STDERR "You cannot add something else than an App or a Group to a Group.\n";
+        print STDERR "You cannot add something else than an App or a Group to a Group.\n" if $Marathon::verbose;
         return 0;
     }
     return 1;
@@ -65,7 +102,6 @@ sub add {
 
 sub is_or_has {
     my ($self, $other) = @_;
-    print STDERR "Compare: " . $self->id . ' :: ' . $other->id . "\n";
     if ( $self->id eq $other->id ) {
         return 1;
     }    
@@ -73,6 +109,41 @@ sub is_or_has {
         return $group->is_or_has($other);
     }
     return 0;
+}
+
+sub apps {
+    my $self = shift;
+    my @apps = values %{$self->{children}->{apps}};
+    return scalar @apps ? wantarray ? @apps : \@apps : undef;
+}
+
+sub groups {
+    my $self = shift;
+    my @groups = values %{$self->{children}->{groups}};
+    return scalar @groups ? wantarray ? @groups : \@groups : undef;
+}
+
+sub get_updateable_values {
+    my $self = shift;
+    my $struct = {
+        id => $self->id,
+    };
+    if ( $self->dependencies ) {
+        $struct->{dependencies} = $self->dependencies;
+    }
+    if ( $self->apps ) {
+        $struct->{apps} = [];
+        foreach my $app ( $self->apps ) {
+            push @{$struct->{apps}}, $app->get_updateable_values
+        }
+    }
+    if ( $self->groups ) {
+        $struct->{groups} = [];
+        foreach my $group ( $self->groups ) {
+            push @{$struct->{groups}}, $group->get_updateable_values
+        }
+    }
+    return $struct;
 }
 
 1;
