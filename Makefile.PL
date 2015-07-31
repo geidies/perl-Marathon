@@ -20,6 +20,8 @@ WriteMakefile(
     PREREQ_PM => {
         'LWP::UserAgent' => 6.13,
         'JSON::XS'       => 3.01,
+        'AnyEvent'       => 7.11,
+        'IO::All'        => 0.86,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'Marathon-*' },

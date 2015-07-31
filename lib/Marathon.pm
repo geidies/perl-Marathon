@@ -6,6 +6,9 @@ use warnings;
 use LWP::UserAgent;
 use JSON::XS;
 use Marathon::App;
+use Marathon::Group;
+use Marathon::Events;
+use Marathon::Deployment;
 
 =head1 NAME
 
@@ -135,6 +138,74 @@ sub new_group {
     return Marathon::Group->new( $config, $self );
 }
 
+=head2 events()
+
+Returns a Marathon::Events objects. You can register callbacks on it and start listening to the events stream. 
+
+=cut
+
+sub events {
+    my $self = shift;
+    return Marathon::Events->new( $self );
+}
+
+=head2 get_tasks( $status )
+
+Returns an array of currently running tasks. If $status is "running" or "staging", will filter and return only those tasks.
+
+=cut
+
+sub get_tasks {
+    my ($self, $status) = @_;
+    $status = '' unless $status && $status =~ m/^running|staging$/;
+    if ( $status ) {
+        $status = '?status='.$status;
+    }
+    my $task_obj = $self->_get_obj_from_json('/v2/tasks'.$status);
+    my $task_arrayref = ( defined $task_obj && exists $task_obj->{tasks} && $task_obj->{tasks} ) || [];
+    return wantarray ? @{$task_arrayref} : $task_arrayref;
+}
+
+=head2 kill_tasks({ tasks => $@ids, scale => bool })
+
+Kills the tasks with the given @ids. Scales if the scale param is true.
+
+=cut
+
+sub kill_tasks {
+    my ($self, $args) = @_;
+    my $param = $args && $args->{scale} && $args->{scale} && $args->{scale} !~ /false/i ? '?scale=true' : ''; #default is false
+    return $self->_put_post_delete( 'POST', '/v2/tasks/delete'.$param, { ids => $args->{tasks} } );
+}
+
+=head2 get_deployments
+
+Returns a list of Marathon::Deployment objects with the currently running deployments.
+
+=cut
+
+sub get_deployments {
+    my $self = shift;
+    my $deployments = $self->_get_obj('/v2/deployments');
+    my @depl_objs = ();
+    foreach ( @{$deployments} ) {
+        push @depl_objs, Marathon::Deployment->new( $_, $self );
+    }
+    return wantarray ? @depl_objs : \@depl_objs;
+}
+
+=head2 kill_deployment( $id, { force => bool } )
+
+Stop the deployment with given id.
+
+=cut
+
+sub kill_deployment {
+    my ($self, $id, $args) = @_;
+    my $param = $args && $args->{force} && $args->{force} && $args->{force} !~ /false/i ? '?force=true' : ''; #default is false
+    return $self->_put_post_delete( 'DELETE', '/v2/deployments/' . $id . $param );
+}
+
 sub get_endpoint {
     my ( $self, $path ) = @_;
     my $url = $self->{_url} . $path;
@@ -213,6 +284,15 @@ sub _get_obj { # hashref
     return undef;
 }
 
+sub _get_obj_from_json { # hashref
+    my ( $self, $path ) = @_;
+    my $response = $self->_put_post_delete('GET', $path);
+    if ($response) {
+        return decode_json $response;
+    }
+    return undef;
+}
+
 sub _post {
     my ($self, $path, $payload) = @_;
     return $self->_put_post_delete( 'POST', $path, $payload );
@@ -231,6 +311,7 @@ sub _delete {
 sub _put_post_delete {
     my ($self, $method, $path, $payload) = @_;
     my $req = HTTP::Request->new( $method, $self->get_endpoint($path) );
+    $req->header( 'Accept' => 'application/json' );
     if ( $payload ) {
         $req->header( 'Content-Type' => 'application/json' );
         $req->content( encode_json $payload );
