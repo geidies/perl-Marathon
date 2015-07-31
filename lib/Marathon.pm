@@ -16,24 +16,36 @@ Marathon - An object-oriented Mapper for the Marathon REST API
 
 =head1 VERSION
 
-Version 0.01
+Version 0.9
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.9';
 our $verbose = 0;
 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+This module is a wrapper around the [Marathon REST API](http://mesosphere.github.io/marathon/docs/rest-api.html), so it can be used without having to write JSON by hand.
 
-Perhaps a little code snippet.
+For the most common tasks, there is a helper method in the main module. Some additional metods are found in the Marathon::App etc. submodules.
 
-    use Marathon;
+To start, create a marathon object:
 
-    my $foo = Marathon->new();
-    ...
+    my $m = Marathon->new( url => 'http://my.marathon.here:8080' );
+
+    my $app = $m->get_app('hello-marathon');
+    
+    $app->instances( 23 );
+    $app->update();
+    print STDERR Dumper( $app->deployments );
+    
+    sleep 10;
+    
+    $app->instances( 1 );
+    $app->update( {force => 'true'} ); # should work even if the scaling up is not done yet.
+
+Please report [issues on github](https://github.com/geidies/perl-Marathon)
 
 =head1 SUBROUTINES/METHODS
 
@@ -340,12 +352,7 @@ Sebastian Geidies, C<< <seb at geidi.es> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-marathon at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Marathon>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
+Please report [issues on github](https://github.com/geidies/perl-Marathon)
 
 =head1 SUPPORT
 
@@ -375,9 +382,6 @@ L<http://cpanratings.perl.org/d/Marathon>
 L<http://search.cpan.org/dist/Marathon/>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
 
 
 =head1 LICENSE AND COPYRIGHT

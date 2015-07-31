@@ -42,9 +42,10 @@ sub create {
 }
 
 sub update {
-    my $self = shift;
+    my ($self, $args) = @_;
+    my $param = $args && $args->{force} && $args->{force} && $args->{force} !~ /false/i ? '?force=true' : ''; #default is false
     $self->_bail unless defined $self->{parent};
-    return $self->{parent}->_put('/v2/apps/' . $self->id, $self->get_updateable_values);
+    return $self->{parent}->_put('/v2/apps/' . $self->id . $param, $self->get_updateable_values);
 }
 
 sub delete {
