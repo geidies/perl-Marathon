@@ -25,7 +25,7 @@ sub start {
     my $addr_port = $addr;
     if ($addr !~ /:/) {
         if ($marathon_url =~ /^https/) {
-            $addr_port .= '443';
+            $addr_port .= ':443';
         }
         else { # =~ /^http/
             $addr_port .= ':80';
