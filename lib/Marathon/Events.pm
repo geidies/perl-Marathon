@@ -19,12 +19,20 @@ sub callbacks {
 }
 
 sub start {
-    my $self = shift;
-    my $cv = AnyEvent->condvar;
-    $self->{parent}->{_url} =~ m,https?\://([^/]+),;
-    my $addr = $1;
+    my ($self, $cv) = @_;
 
-    my $io = io($addr);
+    my ($addr) = $self->{parent}{_url} =~ m{ https?://([^/]+) }x;
+    my $addr_port = $addr;
+    if ($addr !~ /:/) {
+        if ($marathon_url =~ /^https/) {
+            $addr_port .= ':443';
+        }
+        else { # =~ /^http/
+            $addr_port .= ':80';
+        }
+    }
+
+    my $io = io($addr_port);
     $io->print("GET /v2/events HTTP/1.1\nAccept: text/event-stream\nHost: $addr\n\n");
     while (<$io>) {
         last if /^\s*$/;
@@ -35,8 +43,7 @@ sub start {
             $_->($text);
         }
     };
-    print STDERR "yield\n";
-    return $io;
+    return $watcher;
 }
 
 1;
